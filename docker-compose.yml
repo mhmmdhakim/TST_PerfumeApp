@@ -20,6 +20,8 @@ services:
       - "27018:27017"
     volumes:
       - mongo-data:/data/db
+      - ./backend/backup/perfume_db:/backup/perfume_db
+      - ./backend/init-mongo.sh:/docker-entrypoint-initdb.d/init-mongo.sh
     env_file:
       - ./backend/.env
 
