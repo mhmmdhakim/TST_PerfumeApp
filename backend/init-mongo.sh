@@ -1,4 +1,5 @@
 #!/bin/bash
+
 echo "Starting MongoDB restore process..."
 
 # Gunakan environment variable dari Railway
