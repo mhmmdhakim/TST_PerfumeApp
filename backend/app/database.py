@@ -1,4 +1,5 @@
 from pymongo import MongoClient
+from pymongo.errors import ConnectionFailure
 from dotenv import load_dotenv
 import os
 from fastapi import HTTPException
@@ -18,7 +19,9 @@ try:
     carts_collection = db.carts
     orders_collection = db.orders
 
-    
+except ConnectionFailure as e:
+    print(f"Could not connect to MongoDB: {str(e)}")
+    raise HTTPException(status_code=503, detail="Database connection failed")
 except Exception as e:
-    print(f"Failed to connect to MongoDB: {str(e)}")
-    raise
+    print(f"Unexpected error occurred: {str(e)}")
+    raise HTTPException(status_code=500, detail="Internal server error")

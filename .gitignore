@@ -1,6 +1,5 @@
 
 # Python virtual environment
-venv/
 .env
 
 # Byte-compiled / cached files
@@ -9,11 +8,7 @@ __pycache__/
 *.pyo
 
 # Test databases or local DB
-test_db/
-
-# Docker-related files
-Dockerfile
-docker-compose.yaml
+test_db
 
 # Logs
 *.log
