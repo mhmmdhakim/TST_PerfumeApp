@@ -19,6 +19,10 @@ RUN chmod +x /app/init-mongo.sh
 
 COPY . /app
 
+# Mengatur environment variable
+ENV MONGODB_URL=$MONGODB_URL
+ENV PORT=$PORT
+
 EXPOSE 8000
 
 COPY start.sh /app/start.sh
