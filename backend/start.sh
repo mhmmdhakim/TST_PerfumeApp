@@ -1,3 +1,4 @@
 #!/bin/bash
-./init-mongo.sh
+echo "Running init-mongo.sh..."
+/app/init-mongo.sh
 uvicorn app.main:app --host 0.0.0.0 --port $PORT
