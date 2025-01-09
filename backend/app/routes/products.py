@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from ..database import db, products_collection
 from ..models import Perfume, PerfumeCreate
-from typing import List
+from typing import List, Optional
 from .auth import get_current_active_user
 from bson import ObjectId
 from datetime import datetime
@@ -69,6 +69,17 @@ async def create_product(
 
 # Get all products (Public access)
 @router.get("/products", response_model=List[dict])
+
+async def search_products(search: Optional[str] = None):
+    # Add search parameter to your existing get_products endpoint
+    filter_query = {}
+    if search:
+        filter_query["$or"] = [
+            {"name": {"$regex": search, "$options": "i"}},
+            {"brand": {"$regex": search, "$options": "i"}},
+            {"category": {"$regex": search, "$options": "i"}}
+        ]
+
 async def get_products(
     skip: int = 0,
     limit: int = 10,
