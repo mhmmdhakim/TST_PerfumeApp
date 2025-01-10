@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import auth, preferences, products
+from .routes import auth, preferences, products, payment
 from .services import recommender, cart, checkout
 
 app = FastAPI(title="Perfume Recommendation System")
@@ -21,7 +21,7 @@ app.include_router(products.router, tags=["products"], prefix="/api")
 app.include_router(recommender.router, tags=["recommendations"], prefix="/api")
 app.include_router(cart.router, tags=["cart"], prefix="/api")
 app.include_router(checkout.router, tags=["checkout"], prefix="/api")
-
+app.include_router(payment.router, tags=["payment"], prefix="/api")
 
 @app.get("/")
 async def root():
