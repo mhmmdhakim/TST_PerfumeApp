@@ -67,18 +67,34 @@ async def create_product(
             detail=f"Error creating product: {str(e)}"
         )
 
-# Get all products (Public access)
 @router.get("/products", response_model=List[dict])
+async def search_products(
+    search: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 10
+):
+    """
+    Search products by name, brand, or category.
+    """
+    try:
+        filter_query = {}
+        if search:
+            filter_query["$or"] = [
+                {"name": {"$regex": search, "$options": "i"}},
+                {"brand": {"$regex": search, "$options": "i"}},
+                {"category": {"$regex": search, "$options": "i"}}
+            ]
 
-async def search_products(search: Optional[str] = None):
-    # Add search parameter to your existing get_products endpoint
-    filter_query = {}
-    if search:
-        filter_query["$or"] = [
-            {"name": {"$regex": search, "$options": "i"}},
-            {"brand": {"$regex": search, "$options": "i"}},
-            {"category": {"$regex": search, "$options": "i"}}
-        ]
+        products = list(products_collection.find(filter_query).skip(skip).limit(limit))
+        for product in products:
+            product["_id"] = str(product["_id"])  # Convert ObjectId to string
+
+        return products
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error searching products: {str(e)}"
+        )
 
 async def get_products(
     skip: int = 0,
