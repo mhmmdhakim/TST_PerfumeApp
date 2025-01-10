@@ -1,162 +1,328 @@
-Perfume E-commerce API
-A FastAPI-based e-commerce platform specialized for perfume sales, featuring user authentication, product management, smart recommendations, shopping cart functionality, and cryptocurrency payment integration.
-Features
-Authentication & User Management
+# Perfume E-commerce API Documentation
 
-User registration and login with JWT authentication
-Role-based access control (Admin/User)
-User preference management
-Profile management
+## Base URL
+```
+https://perfume-app-production.up.railway.app/api
+```
 
-Product Management
+## Authentication
+The API uses JWT Bearer token authentication. Include the token in the Authorization header:
+```
+Authorization: Bearer <your_access_token>
+```
 
-CRUD operations for perfume products
-Product search and filtering
-Category and brand management
-Price range filtering
+## Authentication Endpoints
 
-Smart Recommendation System
+### Register User
+```http
+POST /register
+```
 
-Personalized product recommendations based on:
+**Request Body:**
+```json
+{
+  "email": "string",
+  "full_name": "string",
+  "password": "string"
+}
+```
 
-User preferences
-Favorite notes
-Price range
-Seasonal preferences
-Brand preferences
-Scent strength preferences
+**Response:**
+```json
+{
+  "message": "User registered successfully"
+}
+```
 
+### Login User
+```http
+POST /login
+```
 
+**Request Body:**
+```json
+{
+  "email": "string",
+  "password": "string"
+}
+```
 
-Shopping Cart
+**Response:**
+```json
+{
+  "access_token": "string",
+  "token_type": "bearer"
+}
+```
 
-Add/remove items
-Update quantities
-Calculate totals
-Cart persistence
+### Get User Profile
+```http
+GET /me
+```
 
-Payment Integration
+**Response:**
+```json
+{
+  "email": "string",
+  "full_name": "string"
+}
+```
 
-Cryptocurrency payment support via Solstra API
-Multiple currency support
-Payment status tracking
-Webhook integration for payment updates
+## Product Management
 
-Technical Stack
+### Create Product (Admin Only)
+```http
+POST /products
+```
 
-Framework: FastAPI
-Database: MongoDB
-Authentication: JWT with OAuth2
-Payment Gateway: Solstra API
-Additional Libraries:
+**Request Body:**
+```json
+{
+  "name": "string",
+  "brand": "string",
+  "category": "string",
+  "price": "number",
+  "description": "string",
+  "notes": ["string"],
+  "scent_strength": "string",
+  "season": "string"
+}
+```
 
-passlib: Password hashing
-python-jose: JWT token handling
-httpx: Async HTTP client
-pydantic: Data validation
-pymongo: MongoDB driver
+### Search Products
+```http
+GET /products
+```
 
+**Query Parameters:**
+- `search` (optional): Search term
+- `skip` (optional): Number of records to skip
+- `limit` (optional): Number of records to return
+- `category` (optional): Filter by category
+- `brand` (optional): Filter by brand
+- `min_price` (optional): Minimum price
+- `max_price` (optional): Maximum price
 
+### Get Product by ID
+```http
+GET /products/{product_id}
+```
 
-Project Structure
-Copy├── routes/
-│   ├── auth.py         # Authentication & user management
-│   ├── cart.py         # Shopping cart operations
-│   ├── checkout.py     # Payment & checkout process
-│   ├── preferences.py  # User preferences management
-│   ├── products.py     # Product management
-│   └── recommend.py    # Recommendation system
-├── database/
-│   └── __init__.py     # Database configuration
-├── models/
-│   └── __init__.py     # Pydantic models
-└── main.py             # Application entry point
-API Endpoints
-Authentication
+## User Preferences
 
-POST /register: Register new user
-POST /login: User login
-POST /token: Get access token
-GET /me: Get current user info
-PUT /me: Update user info
+### Create User Preferences
+```http
+POST /preferences
+```
 
-Products
+**Request Body:**
+```json
+{
+  "favorite_notes": ["string"],
+  "preferred_categories": ["string"],
+  "price_range": "string",
+  "preferred_brands": ["string"],
+  "seasonal_preference": "string",
+  "scent_strength": "string"
+}
+```
 
-GET /products: List/search products
-POST /products: Create product (Admin)
-GET /products/{id}: Get product details
-PUT /products/{id}: Update product (Admin)
-DELETE /products/{id}: Delete product (Admin)
+### Get User Preferences
+```http
+GET /preferences/me
+```
 
-Cart
+### Update User Preferences
+```http
+PUT /preferences/me
+```
 
-GET /cart: View cart
-POST /cart/items: Add item to cart
-PUT /cart/items/{id}: Update cart item
-DELETE /cart: Clear cart
+## Shopping Cart
 
-Preferences
+### Get Cart
+```http
+GET /cart
+```
 
-POST /preferences: Create preferences
-GET /preferences/me: Get user preferences
-PUT /preferences/me: Update preferences
-GET /preferences: List all preferences (Admin)
+### Add Item to Cart
+```http
+POST /cart/items
+```
 
-Recommendations
+**Request Body:**
+```json
+{
+  "product_id": "string",
+  "quantity": "integer"
+}
+```
 
-GET /recommendations: Get personalized recommendations
+### Update Cart Item
+```http
+PUT /cart/items/{product_id}
+```
 
-Checkout
+**Request Body:**
+```json
+{
+  "quantity": "integer"
+}
+```
 
-POST /checkout: Initialize checkout process
-POST /payment/check/{id}: Check payment status
-POST /payment/update-currency: Update payment currency
-POST /payment/webhook: Payment webhook handler
+### Clear Cart
+```http
+DELETE /cart
+```
 
-Setup & Installation
+## Checkout & Payment
 
-Clone the repository
+### Initiate Checkout
+```http
+POST /checkout
+```
 
-bashCopygit clone <repository-url>
+**Response:**
+```json
+{
+  "id": "string",
+  "order_id": "string",
+  "walletAddress": "string",
+  "amount": "number",
+  "currency": "string"
+}
+```
 
-Create and activate virtual environment
+### Check Payment Status
+```http
+POST /payment/check/{payment_id}
+```
 
-bashCopypython -m venv venv
-source venv/bin/activate  # Unix
-venv\Scripts\activate     # Windows
+### Update Payment Currency
+```http
+POST /payment/update-currency
+```
 
-Install dependencies
+**Request Body:**
+```json
+{
+  "payment_id": "string",
+  "currency": "string"
+}
+```
 
-bashCopypip install -r requirements.txt
+## Recommendations
 
-Set up environment variables
+### Get Personalized Recommendations
+```http
+GET /recommendations
+```
 
-bashCopySECRET_KEY=your_secret_key
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-MONGODB_URL=your_mongodb_url
-SOLSTRA_API_BASE=your_solstra_api_url
-WEBHOOK_BASE_URL=your_webhook_base_url
+**Query Parameters:**
+- `limit` (optional): Number of recommendations to return (default: 2)
 
-Run the application
+**Response:**
+```json
+[
+  {
+    "_id": "string",
+    "name": "string",
+    "brand": "string",
+    "price": "number",
+    "category": "string",
+    "notes": ["string"],
+    "scent_strength": "string",
+    "season": "string"
+  }
+]
+```
 
-bashCopyuvicorn main:app --reload
-Security Considerations
+## Error Responses
 
-Implements JWT-based authentication
-Password hashing using bcrypt
-Role-based access control
-Input validation using Pydantic models
-Secure payment processing
-Error handling and logging
+The API uses standard HTTP status codes:
 
-Contributing
+- `200`: Success
+- `201`: Created
+- `400`: Bad Request
+- `401`: Unauthorized
+- `403`: Forbidden
+- `404`: Not Found
+- `500`: Internal Server Error
 
-Fork the repository
-Create your feature branch
-Commit your changes
-Push to the branch
-Create a new Pull Request
+Error response format:
+```json
+{
+  "detail": "Error message description"
+}
+```
 
-License
-This project is licensed under the MIT License - see the LICENSE file for details
+## Rate Limiting
+
+- Anonymous users: 100 requests per hour
+- Authenticated users: 1000 requests per hour
+- Admin users: 5000 requests per hour
+
+## Data Models
+
+### User
+```json
+{
+  "email": "string",
+  "full_name": "string",
+  "password": "string (hashed)",
+  "is_admin": "boolean"
+}
+```
+
+### Product
+```json
+{
+  "_id": "string",
+  "name": "string",
+  "brand": "string",
+  "category": "string",
+  "price": "number",
+  "description": "string",
+  "notes": ["string"],
+  "scent_strength": "string",
+  "season": "string",
+  "created_at": "datetime",
+  "created_by": "string",
+  "updated_at": "datetime",
+  "updated_by": "string"
+}
+```
+
+### Cart
+```json
+{
+  "user_email": "string",
+  "items": [
+    {
+      "product_id": "string",
+      "name": "string",
+      "price": "number",
+      "quantity": "integer",
+      "subtotal": "number"
+    }
+  ],
+  "total_amount": "number",
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+### Order
+```json
+{
+  "user_email": "string",
+  "items": ["CartItem"],
+  "total_amount": "number",
+  "payment_id": "string",
+  "wallet_address": "string",
+  "currency": "string",
+  "status": "string",
+  "created_at": "datetime",
+  "payment_status": "string",
+  "payment_updated_at": "datetime"
+}
+```
