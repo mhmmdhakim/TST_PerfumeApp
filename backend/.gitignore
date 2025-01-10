@@ -1,0 +1,23 @@
+
+# Python virtual environment
+.env
+
+# Byte-compiled / cached files
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Test databases or local DB
+/test_db.py
+
+# Logs
+*.log
+
+# Pytest or coverage files
+htmlcov/
+.coverage
+.cache
+
+# IDE or editor settings
+.vscode/
+.idea/

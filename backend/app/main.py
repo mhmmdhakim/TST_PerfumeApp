@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import auth, preferences, products, payment
-from .services import recommender, cart, checkout
+from .routes import auth, preferences, products, payment, checkout
+from .services import recommender, cart
 
 app = FastAPI(title="Perfume Recommendation System")
 
