@@ -1,249 +1,262 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Dict
-from bson import ObjectId
+from typing import Dict, Optional
 import httpx
-from ..database import db, orders_collection
-from ..routes.auth import get_current_active_user
+import os
 from datetime import datetime
-from ..models import CheckoutRequest, ShippingInfo, Cart, Order
+from bson import ObjectId
 
-router = APIRouter()
+from ..database import orders_collection, carts_collection
+from ..routes.auth import get_current_active_user
+from ..services.cart import CartManager
 
-SOLSTRA_API_BASE = "https://api-staging.solstra.fi"
-WEBHOOK_BASE_URL = "https://perfume-app-production.up.railway.app"
+router = APIRouter(prefix="/api")
 
-async def get_cart(user_email: str) -> Cart:
-    """Get user's cart or create if not exists"""
-    cart_dict = await db.carts.find_one({"user_email": user_email})
-    if not cart_dict:
-        cart_dict = {
-            "user_email": user_email,
-            "items": [],
-            "total_amount": 0
-        }
-        await db.carts.insert_one(cart_dict)
-    return Cart(**cart_dict)
+PAYMENT_API_BASE_URL = "https://api-staging.solstra.fi"
+API_KEY = os.getenv("SOLSTRAFI_API_KEY")
 
-async def clear_cart(user_email: str):
-    """Clear user's cart after successful checkout"""
-    await db.carts.update_one(
-        {"user_email": user_email},
-        {"$set": {"items": [], "total_amount": 0}}
-    )
-
-async def create_solstra_payment(amount: float, currency: str = "USDT"):
-    """Create payment in Solstra payment service"""
-    async with httpx.AsyncClient() as client:
+class CheckoutManager:
+    def __init__(self):
+        self.cart_manager = CartManager()
+        
+    async def create_order(self, user_email: str) -> Dict:
+        """Create a new order from cart items"""
         try:
-            response = await client.post(
-                f"{SOLSTRA_API_BASE}/service/pay/create",
-                json={
-                    "currency": currency,
-                    "amount": amount,
-                    "webhookURL": f"{WEBHOOK_BASE_URL}/api/webhook"
-                }
-            )
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPError as e:
+            # Get user's cart
+            cart = await self.cart_manager.get_cart(user_email)
+            if not cart["items"]:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cart is empty"
+                )
+
+            # Create order
+            order = {
+                "user_email": user_email,
+                "items": cart["items"],
+                "total_amount": cart["total_amount"],
+                "status": "pending_payment",
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+            
+            result = orders_collection.insert_one(order)
+            order["_id"] = str(result.inserted_id)
+            
+            return order
+            
+        except Exception as e:
             raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Error communicating with payment service: {str(e)}"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error creating order: {str(e)}"
             )
 
-@router.post("/checkout")
-async def checkout(
-    request: CheckoutRequest,
-    current_user: Dict = Depends(get_current_active_user)
-):
-    """Process checkout and create order"""
-    try:
-        # Get cart and validate
-        cart = await get_cart(current_user["email"])
-        if not cart.items:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cart is empty"
-            )
+    async def create_payment(self, order_id: str, currency: str) -> Dict:
+        """Create payment request using Solstrafi API"""
+        try:
+            order = orders_collection.find_one({"_id": ObjectId(order_id)})
+            if not order:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Order not found"
+                )
 
-        # Create payment with Solstra
-        payment_data = await create_solstra_payment(cart.total_amount)
-        if payment_data.get("status") != "success":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to create payment"
-            )
+            async with httpx.AsyncClient() as client:
+                # Create payment
+                response = await client.post(
+                    f"{PAYMENT_API_BASE_URL}/service/pay/create",
+                    headers={"Authorization": f"Bearer {API_KEY}"},
+                    json={
+                        "currency": currency,
+                        "amount": order["total_amount"],
+                        "webhookURL": f"{os.getenv('API_BASE_URL')}/api/checkout/webhook/{order_id}"
+                    }
+                )
+                
+                if response.status_code != 200:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Failed to create payment"
+                    )
 
-        # Create order using pydantic model
-        order = Order(
-            user_email=current_user["email"],
-            items=cart.items,
-            total_amount=cart.total_amount,
-            shipping_info=request.shipping_info,
-            payment_id=payment_data["data"]["id"],
-            wallet_address=payment_data["data"]["walletAddress"],
-            currency=payment_data["data"]["currency"],
-            status="pending",
-            payment_status="pending"
-        )
-
-        # Convert order to dict and save
-        order_dict = order.dict()
-        result = await orders_collection.insert_one(order_dict)
-        order_id = str(result.inserted_id)
-
-        # Clear cart after successful order creation
-        await clear_cart(current_user["email"])
-
-        return {
-            "id": payment_data["data"]["id"],
-            "order_id": order_id,
-            "walletAddress": payment_data["data"]["walletAddress"],
-            "amount": payment_data["data"]["amount"],
-            "currency": payment_data["data"]["currency"]
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Checkout error: {str(e)}")  # Add logging for debugging
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
-
-@router.post("/check/{payment_id}")
-async def check_payment_status(
-    payment_id: str,
-    current_user: Dict = Depends(get_current_active_user)
-):
-    """Check payment status"""
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{SOLSTRA_API_BASE}/service/pay/{payment_id}/check"
-            )
-            response.raise_for_status()
-            payment_data = response.json()
-
-            if payment_data["data"]["isPaid"]:
-                await orders_collection.update_one(
-                    {"payment_id": payment_id},
+                payment_data = response.json()["data"]
+                
+                # Update order with payment info
+                orders_collection.update_one(
+                    {"_id": ObjectId(order_id)},
                     {
                         "$set": {
-                            "status": "paid",
-                            "payment_status": "completed",
-                            "payment_updated_at": datetime.utcnow()
+                            "payment_id": payment_data["id"],
+                            "payment_currency": payment_data["currency"],
+                            "payment_wallet": payment_data["walletAddress"],
+                            "payment_check_url": payment_data["checkPaid"],
+                            "updated_at": datetime.utcnow()
                         }
                     }
                 )
 
-            return payment_data
+                return payment_data
 
-    except httpx.HTTPError as e:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Error checking payment status: {str(e)}"
-        )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error creating payment: {str(e)}"
+            )
+
+    async def check_payment_status(self, order_id: str) -> Dict:
+        """Check payment status using Solstrafi API"""
+        try:
+            order = orders_collection.find_one({"_id": ObjectId(order_id)})
+            if not order:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Order not found"
+                )
+
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{PAYMENT_API_BASE_URL}/service/pay/{order['payment_id']}/check",
+                    headers={"Authorization": f"Bearer {API_KEY}"}
+                )
+                
+                if response.status_code != 200:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Failed to check payment status"
+                    )
+
+                payment_status = response.json()
+                
+                # Update order status if payment is confirmed
+                if payment_status["data"]["isPaid"]:
+                    orders_collection.update_one(
+                        {"_id": ObjectId(order_id)},
+                        {
+                            "$set": {
+                                "status": "paid",
+                                "updated_at": datetime.utcnow()
+                            }
+                        }
+                    )
+                    # Clear the cart after successful payment
+                    await self.cart_manager.clear_cart(order["user_email"])
+
+                return payment_status["data"]
+
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error checking payment status: {str(e)}"
+            )
+
+# API Endpoints
+@router.post("/checkout")
+async def create_checkout(
+    current_user: Dict = Depends(get_current_active_user)
+):
+    """Create a new order and initiate checkout process"""
+    try:
+        checkout_manager = CheckoutManager()
+        
+        # Create order
+        order = await checkout_manager.create_order(current_user["email"])
+        
+        return {"order_id": order["_id"], "status": "created"}
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail=f"Error processing checkout: {str(e)}"
         )
 
-@router.post("/update-currency")
-async def update_payment_currency(data: Dict):
-    """Update payment currency"""
+@router.post("/checkout/{order_id}/pay")
+async def create_payment(
+    order_id: str,
+    currency: str,
+    current_user: Dict = Depends(get_current_active_user)
+):
+    """Create payment for an order"""
     try:
-        payment_id = data.get("payment_id")
-        currency = data.get("currency")
+        checkout_manager = CheckoutManager()
+        payment = await checkout_manager.create_payment(order_id, currency)
+        return payment
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating payment: {str(e)}"
+        )
 
-        if not all([payment_id, currency]):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Payment ID and currency are required"
-            )
+@router.get("/checkout/{order_id}/status")
+async def check_payment_status(
+    order_id: str,
+    current_user: Dict = Depends(get_current_active_user)
+):
+    """Check payment status for an order"""
+    try:
+        checkout_manager = CheckoutManager()
+        status = await checkout_manager.check_payment_status(order_id)
+        return status
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error checking payment status: {str(e)}"
+        )
 
-        order = await orders_collection.find_one({"payment_id": payment_id})
+@router.post("/checkout/webhook/{order_id}")
+async def payment_webhook(order_id: str):
+    """Handle payment webhook from Solstrafi"""
+    try:
+        checkout_manager = CheckoutManager()
+        status = await checkout_manager.check_payment_status(order_id)
+        return {"status": "success", "payment_status": status}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error processing webhook: {str(e)}"
+        )
+
+@router.get("/orders")
+async def get_orders(
+    current_user: Dict = Depends(get_current_active_user),
+    skip: int = 0,
+    limit: int = 10
+):
+    """Get user's order history"""
+    try:
+        orders = list(orders_collection.find(
+            {"user_email": current_user["email"]}
+        ).skip(skip).limit(limit))
+        
+        for order in orders:
+            order["_id"] = str(order["_id"])
+        
+        return orders
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving orders: {str(e)}"
+        )
+
+@router.get("/orders/{order_id}")
+async def get_order(
+    order_id: str,
+    current_user: Dict = Depends(get_current_active_user)
+):
+    """Get specific order details"""
+    try:
+        order = orders_collection.find_one({
+            "_id": ObjectId(order_id),
+            "user_email": current_user["email"]
+        })
+        
         if not order:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Order not found"
             )
-
-        # Create new payment with updated currency
-        payment_data = await create_solstra_payment(
-            amount=order["total_amount"],
-            currency=currency
-        )
-
-        if payment_data["status"] != "success":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to update currency"
-            )
-
-        # Update order with new payment information
-        await orders_collection.update_one(
-            {"payment_id": payment_id},
-            {
-                "$set": {
-                    "payment_id": payment_data["data"]["id"],
-                    "wallet_address": payment_data["data"]["walletAddress"],
-                    "currency": currency,
-                    "payment_updated_at": datetime.utcnow()
-                }
-            }
-        )
-
-        return {
-            "walletAddress": payment_data["data"]["walletAddress"],
-            "amount": payment_data["data"]["amount"],
-            "currency": currency
-        }
-
-    except HTTPException:
-        raise
+            
+        order["_id"] = str(order["_id"])
+        return order
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
-
-@router.post("/webhook")
-async def payment_webhook(data: Dict):
-    """Handle payment webhook from Solstra"""
-    try:
-        payment_id = data.get("payment_id")
-        if not payment_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Payment ID is required"
-            )
-        
-        result = await orders_collection.update_one(
-            {"payment_id": payment_id},
-            {
-                "$set": {
-                    "status": "paid",
-                    "payment_status": "completed",
-                    "payment_updated_at": datetime.utcnow()
-                }
-            }
-        )
-
-        if result.modified_count == 0:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Order not found"
-            )
-
-        return {"status": "success"}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error processing webhook: {str(e)}"
+            detail=f"Error retrieving order: {str(e)}"
         )
