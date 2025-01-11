@@ -1,6 +1,17 @@
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
 from datetime import datetime
+from typing import Dict
+
+class ShippingInfo(BaseModel):
+    address: str
+    city: str
+    country: str
+    postal_code: str
+    phone: str
+
+class CheckoutRequest(BaseModel):
+    shipping_info: ShippingInfo
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -66,4 +77,36 @@ class PerfumeCreate(BaseModel):
 class Perfume(PerfumeCreate):
     id: str
 
+class ShippingInfo(BaseModel):
+    address: str
+    city: str
+    country: str
+    postal_code: str
+    phone: str
+
+class CheckoutRequest(BaseModel):
+    shipping_info: ShippingInfo
+
+class CartItem(BaseModel):
+    product_id: str
+    name: str
+    price: float
+    quantity: int
+
+class Cart(BaseModel):
+    user_email: str
+    items: List[CartItem]
+    total_amount: float
+
+class Order(BaseModel):
+    user_email: str
+    items: List[CartItem]
+    total_amount: float
+    shipping_info: ShippingInfo
+    payment_id: str
+    wallet_address: str
+    currency: str
+    status: str
+    payment_status: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
