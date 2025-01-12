@@ -185,7 +185,6 @@ async def create_checkout(
 async def create_payment(
     order_id: str,
     currency: str = "SOL",
-    current_user: Dict = Depends(get_current_active_user)
 ):
     try:
         checkout_manager = CheckoutManager()
@@ -200,7 +199,6 @@ async def create_payment(
 @router.get("/checkout/{order_id}/status")
 async def check_payment_status(
     order_id: str,
-    current_user: Dict = Depends(get_current_active_user)
 ):
     try:
         checkout_manager = CheckoutManager()
