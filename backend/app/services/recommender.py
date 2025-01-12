@@ -61,9 +61,9 @@ class PerfumeRecommender:
 
             # Price range matching
             price_ranges = {
-                "low-range": (0, 50),
-                "mid-range": (50, 150),
-                "luxury": (150, float('inf'))
+                "low-range": (0, 200000),
+                "mid-range": (200001, 500000),
+                "luxury": (500001, float('inf'))
             }
             user_range = preferences.get("price_range")
             if user_range in price_ranges:

@@ -31,14 +31,11 @@ class CheckoutManager:
                     detail="Cart is empty"
                 )
 
-            sol_amount = float(cart["total_amount"]) / SOL_TO_IDR
-            sol_amount = round(sol_amount, 8)
-
             order = {
                 "user_email": user_email,
                 "items": cart["items"],
-                "total_amount_idr": cart["total_amount"],
-                "total_amount_sol": sol_amount,
+                "total_amount_idr": cart["total_amount"],  
+                "total_amount_sol": float(cart["total_amount"]) / SOL_TO_IDR, 
                 "status": "pending_payment",
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow()
@@ -66,24 +63,21 @@ class CheckoutManager:
 
             if currency == "USDT":
                 amount = float(order["total_amount_idr"]) / USDT_TO_IDR
-            else:  # SOL
-                amount = order["total_amount_sol"]
-
-            amount = round(amount, 8)
+            else:
+                amount = float(order["total_amount_idr"]) / SOL_TO_IDR
 
             webhook_url = f"{API_BASE_URL}/api/checkout/webhook"
             
-            async with httpx.AsyncClient() as client:
-                # Create payment dengan header yang benar
+            async with httpx.AsyncClient() as client:   
                 response = await client.post(
                     f"{PAYMENT_API_BASE_URL}/service/pay/create",
                     headers={
-                        "X-Api-Key": API_KEY,  # Menggunakan X-Api-Key bukan Authorization
+                        "X-Api-Key": API_KEY,  
                         "Content-Type": "application/json"
                     },
                     json={
                         "currency": currency,
-                        "amount": order["total_amount_sol"],
+                        "amount": amount, 
                         "webhookURL": webhook_url
                     }
                 )
