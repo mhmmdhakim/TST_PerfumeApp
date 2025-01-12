@@ -13,53 +13,59 @@ const LoginForm = ({ onSuccess }) => {
     setError("");
 
     try {
-      const success = await login(email, password);
-      if (success && onSuccess) {
+      const result = await login(email, password);
+      if (result.success) {
         onSuccess();
+      } else {
+        setError(result.error || "Email atau password salah");
       }
     } catch (err) {
-      setError("Email atau password salah");
+      setError("Terjadi kesalahan. Silakan coba lagi.");
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className='space-y-4'>
       <div>
         <label
-          htmlFor="email"
-          className="block text-sm font-medium text-gray-700"
+          htmlFor='email'
+          className='block text-sm font-medium text-gray-700'
         >
           Email
         </label>
         <input
-          type="email"
-          id="email"
+          type='email'
+          id='email'
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+          className='mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500'
           required
         />
       </div>
       <div>
         <label
-          htmlFor="password"
-          className="block text-sm font-medium text-gray-700"
+          htmlFor='password'
+          className='block text-sm font-medium text-gray-700'
         >
           Password
         </label>
         <input
-          type="password"
-          id="password"
+          type='password'
+          id='password'
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+          className='mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500'
           required
         />
       </div>
-      {error && <p className="text-red-500 text-sm">{error}</p>}
+      {error && (
+        <div className='bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded'>
+          {error}
+        </div>
+      )}
       <button
-        type="submit"
-        className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
+        type='submit'
+        className='w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors'
       >
         Masuk
       </button>

@@ -1,3 +1,4 @@
+// src/App.jsx
 import React, { useState } from "react";
 import {
   BrowserRouter as Router,
@@ -10,15 +11,16 @@ import MainLayout from "./components/Layout/MainLayout";
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import Products from "./pages/Products";
+import ProductDetail from "./pages/ProductDetail";
 import CartPage from "./pages/CartPage";
 import Homepage from "./pages/HomePage";
 import Checkout from "./components/checkout/Checkout";
+import ProductList from "./components/products/ProductList";
+import Profile from "./pages/Profile";
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
-  if (!user) return <Navigate to="/login" />;
-  return children;
+  return user ? children : <Navigate to='/login' />;
 };
 
 const App = () => {
@@ -31,12 +33,14 @@ const App = () => {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/checkout" element={<Checkout />} />
+        <Route path='*' element={<Navigate to='/home' replace />} />
+        <Route path='/' element={<LandingPage />} />
+        <Route path='/login' element={<Login />} />
+        <Route path='/register' element={<Register />} />
+
+        {/* Protected Routes with MainLayout */}
         <Route
-          path="/home"
+          path='/home'
           element={
             <ProtectedRoute>
               <MainLayout onSearchResults={handleSearchResults}>
@@ -45,8 +49,9 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+
         <Route
-          path="/cart"
+          path='/cart'
           element={
             <ProtectedRoute>
               <MainLayout onSearchResults={handleSearchResults}>
@@ -55,11 +60,47 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+
         <Route
-          path="/products"
+          path='/products'
           element={
             <ProtectedRoute>
-              <Products searchResults={searchResults} />
+              <MainLayout onSearchResults={handleSearchResults}>
+                <ProductList searchResults={searchResults} />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path='/product/:id'
+          element={
+            <ProtectedRoute>
+              <MainLayout onSearchResults={handleSearchResults}>
+                <ProductDetail />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path='/checkout'
+          element={
+            <ProtectedRoute>
+              <MainLayout onSearchResults={handleSearchResults}>
+                <Checkout />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path='/profile'
+          element={
+            <ProtectedRoute>
+              <MainLayout onSearchResults={handleSearchResults}>
+                <Profile />
+              </MainLayout>
             </ProtectedRoute>
           }
         />

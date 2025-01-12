@@ -20,11 +20,13 @@ export const AuthProvider = ({ children }) => {
         }
       );
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error("Login failed");
+        // Throw error with message from backend if available
+        throw new Error(data.detail || "Login failed");
       }
 
-      const data = await response.json();
       localStorage.setItem("token", data.access_token);
       setToken(data.access_token);
 
@@ -37,14 +39,18 @@ export const AuthProvider = ({ children }) => {
           },
         }
       );
+
+      if (!userResponse.ok) {
+        throw new Error("Failed to fetch user data");
+      }
+
       const userData = await userResponse.json();
       localStorage.setItem("user", JSON.stringify(userData));
       setUser(userData);
 
-      return true;
+      return { success: true };
     } catch (error) {
-      console.error("Login error:", error);
-      return false;
+      return { success: false, error: error.message };
     }
   }, []);
 
