@@ -15,7 +15,8 @@ router = APIRouter()
 PAYMENT_API_BASE_URL = "https://api-staging.solstra.fi"
 API_KEY = os.getenv("SOLSTRAFI_API_KEY")  # Menggunakan API key dari .env
 API_BASE_URL = os.getenv("API_BASE_URL")
-SOL_TO_IDR = 3200000  # Konversi rate: 1 SOL = Rp 3.200.000
+SOL_TO_IDR = 3200000
+USDT_TO_IDR = 16000
 
 class CheckoutManager:
     def __init__(self):
@@ -63,6 +64,13 @@ class CheckoutManager:
                     detail="Order not found"
                 )
 
+            if currency == "USDT":
+                amount = float(order["total_amount_idr"]) / USDT_TO_IDR
+            else:  # SOL
+                amount = order["total_amount_sol"]
+
+            amount = round(amount, 8)
+
             webhook_url = f"{API_BASE_URL}/api/checkout/webhook"
             
             async with httpx.AsyncClient() as client:
@@ -86,6 +94,8 @@ class CheckoutManager:
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         detail=f"Failed to create payment: {error_detail}"
                     )
+
+                payment_data = response.json()["data"]
                 
                 update_data = {
                     "payment_id": payment_data["id"],
