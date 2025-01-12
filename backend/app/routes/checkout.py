@@ -10,7 +10,7 @@ from ..database import orders_collection, carts_collection
 from ..routes.auth import get_current_active_user
 from ..services.cart import CartManager
 
-router = APIRouter(prefix="/api")
+router = APIRouter()
 
 PAYMENT_API_BASE_URL = "https://api-staging.solstra.fi"
 API_KEY = os.getenv("SOLSTRAFI_API_KEY")  # Menggunakan API key dari .env
