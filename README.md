@@ -155,6 +155,5 @@ uvicorn main:app --reload
 4. Push to the branch
 5. Create a new Pull Request
 
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details
+## Usage
+For payment, you can try it by downloading Phantom Wallet and use testnet mode with Solana devnet. You can get 1 SOL using https://faucet.quicknode.com/solana/devnet and try payment using dummy product.
