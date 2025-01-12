@@ -21,6 +21,39 @@ class CheckoutManager:
     def __init__(self):
         self.cart_manager = CartManager()
         
+    async def create_order(self, user_email: str) -> Dict:
+        try:
+            cart = await self.cart_manager.get_cart(user_email)
+            if not cart["items"]:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cart is empty"
+                )
+
+            sol_amount = float(cart["total_amount"]) / SOL_TO_IDR
+            sol_amount = round(sol_amount, 8)
+
+            order = {
+                "user_email": user_email,
+                "items": cart["items"],
+                "total_amount_idr": cart["total_amount"],
+                "total_amount_sol": sol_amount,
+                "status": "pending_payment",
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+            
+            result = orders_collection.insert_one(order)
+            order["_id"] = str(result.inserted_id)
+            
+            return order
+            
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error creating order: {str(e)}"
+            )
+
     async def create_payment(self, order_id: str, currency: str = "SOL") -> Dict:
         try:
             order = orders_collection.find_one({"_id": ObjectId(order_id)})
@@ -33,10 +66,11 @@ class CheckoutManager:
             webhook_url = f"{API_BASE_URL}/api/checkout/webhook"
             
             async with httpx.AsyncClient() as client:
+                # Create payment dengan header yang benar
                 response = await client.post(
                     f"{PAYMENT_API_BASE_URL}/service/pay/create",
                     headers={
-                        "X-Api-Key": API_KEY,
+                        "X-Api-Key": API_KEY,  # Menggunakan X-Api-Key bukan Authorization
                         "Content-Type": "application/json"
                     },
                     json={
@@ -52,8 +86,6 @@ class CheckoutManager:
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         detail=f"Failed to create payment: {error_detail}"
                     )
-
-                payment_data = response.json()["data"]
                 
                 update_data = {
                     "payment_id": payment_data["id"],
